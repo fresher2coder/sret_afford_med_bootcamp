@@ -1,58 +1,88 @@
-//Context, Provider, Consumer
+// MovieContext.js
 import { createContext, useContext, useEffect, useState } from "react";
-import initialMovies from "../data/initialMovies";
+import axios from "axios";
 
 export const MovieContext = createContext();
+const API_URL = "https://json-server-9c4h.onrender.com/movies";
 
-export const MovieProvider = (props) => {
-  const { children } = props;
-
-  const [movies, setMovies] = useState(initialMovies);
+export const MovieProvider = ({ children }) => {
+  const [movies, setMovies] = useState([]);
   const [favorites, setFavorites] = useState([]);
 
+  // 1. Fetch all movies on load
   useEffect(() => {
-    const favs = movies.filter((movie) => movie.favorite);
-    setFavorites(favs);
+    fetchMovies();
+  }, []);
+
+  // 2. Update favorites whenever movies change
+  useEffect(() => {
+    setFavorites(movies.filter((movie) => movie.favorite));
   }, [movies]);
 
-  const addMovie = (movie) => setMovies([...movies, movie]);
-
-  const toggleWatched = (id) => {
-    setMovies((prev) =>
-      prev.map((movie) =>
-        movie.id === id ? { ...movie, watched: !movie.watched } : movie
-      )
-    );
+  const fetchMovies = async () => {
+    try {
+      const response = await axios.get(API_URL);
+      setMovies(response.data);
+    } catch (error) {
+      console.error("Error fetching movies:", error);
+    }
   };
 
-  const deleteMovie = (id) => {
-    setMovies((prev) => prev.filter((movie) => movie.id !== id));
-    setFavorites((prev) => prev.filter((movie) => movie.id !== id));
+  const addMovie = async (movie) => {
+    try {
+      const response = await axios.post(API_URL, movie);
+      setMovies((prev) => [...prev, response.data]);
+    } catch (error) {
+      console.error("Error adding movie:", error);
+    }
   };
 
-  const toggleFavorite = (id) => {
-    setMovies((prev) =>
-      prev.map((movie) =>
-        movie.id === id ? { ...movie, favorite: !movie.favorite } : movie
-      )
-    );
+  const toggleWatched = async (id) => {
+    const movie = movies.find((m) => m.id === id);
+    if (!movie) return;
+    try {
+      const updated = { ...movie, watched: !movie.watched };
+      await axios.put(`${API_URL}/${id}`, updated);
+      setMovies((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    } catch (error) {
+      console.error("Error toggling watched:", error);
+    }
+  };
+
+  const toggleFavorite = async (id) => {
+    const movie = movies.find((m) => m.id === id);
+    if (!movie) return;
+    try {
+      const updated = { ...movie, favorite: !movie.favorite };
+      await axios.put(`${API_URL}/${id}`, updated);
+      setMovies((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+    }
+  };
+
+  const deleteMovie = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+      setMovies((prev) => prev.filter((m) => m.id !== id));
+    } catch (error) {
+      console.error("Error deleting movie:", error);
+    }
   };
 
   return (
-    <>
-      <MovieContext.Provider
-        value={{
-          movies,
-          addMovie,
-          toggleWatched,
-          deleteMovie,
-          favorites,
-          toggleFavorite,
-        }}
-      >
-        {children}
-      </MovieContext.Provider>
-    </>
+    <MovieContext.Provider
+      value={{
+        movies,
+        favorites,
+        addMovie,
+        toggleWatched,
+        toggleFavorite,
+        deleteMovie,
+      }}
+    >
+      {children}
+    </MovieContext.Provider>
   );
 };
 
